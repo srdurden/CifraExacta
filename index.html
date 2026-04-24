@@ -555,6 +555,93 @@
       margin-top: -6px;
     }
 
+
+    .choice-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: center;
+      background: rgba(8, 28, 73, .22);
+      backdrop-filter: blur(4px);
+      padding: 22px;
+    }
+
+    .choice-backdrop.show { display: grid; }
+
+    .choice-popup {
+      width: min(560px, calc(100vw - 44px));
+      background: #fff;
+      border: 1px solid #e4e4e4;
+      border-radius: 28px;
+      box-shadow: 0 18px 45px rgba(8, 28, 73, .22);
+      padding: 22px;
+    }
+
+    .choice-title {
+      margin: 0 0 16px;
+      text-align: center;
+      color: var(--ink);
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -.03em;
+    }
+
+    .choice-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .choice-option {
+      min-height: 78px;
+      border: 1px solid #e6e6e6;
+      border-radius: 18px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      box-shadow: 0 2px 7px rgba(0,0,0,.07);
+    }
+
+    .choice-option:active {
+      transform: translateY(1px) scale(.99);
+    }
+
+    .choice-option.current {
+      color: #fff;
+      background: var(--purple);
+      border-color: var(--purple);
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,.1), 0 2px 7px rgba(0,0,0,.07);
+    }
+
+    .choice-cancel {
+      width: 100%;
+      min-height: 54px;
+      margin-top: 14px;
+      border-radius: 16px;
+      background: #fff;
+      border: 2px solid var(--purple);
+      color: var(--purple);
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .setup-number-btn {
+      width: 100%;
+      height: 102px;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      text-align: center;
+      font-weight: 900;
+      font-size: clamp(38px, 3.8vw, 56px);
+      letter-spacing: -.05em;
+      padding: 14px 32px 0 12px;
+    }
+
     .toast {
       position: fixed;
       left: 50%;
@@ -658,13 +745,21 @@
     </section>
   </div>
 
+
+  <div class="choice-backdrop" id="choiceBackdrop" aria-hidden="true">
+    <div class="choice-popup" role="dialog" aria-modal="true" aria-labelledby="choiceTitle">
+      <h2 class="choice-title" id="choiceTitle">Escoge una cifra</h2>
+      <div class="choice-grid" id="choiceGrid"></div>
+      <button class="choice-cancel" id="choiceCancel">Cancelar</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
     const colorCycle = ['var(--pink)', 'var(--blue)', 'var(--green)', 'var(--yellow)', 'var(--purple)', 'var(--orange)'];
-    const setupValues = [100, 75, 8, 6, 3, 2];
-    const smallNumbers = [1,2,3,4,5,6,7,8,9,10];
-    const bigNumbers = [25,50,75,100];
+    const choiceValues = [1,2,3,4,5,6,7,8,9,10,25,100];
+    let setupValues = [100, 25, 8, 6, 3, 2];
 
     const setupGrid = document.getElementById('setupGrid');
     const targetInput = document.getElementById('targetInput');
@@ -679,7 +774,11 @@
     const startBtn = document.getElementById('startBtn');
     const menuButton = document.getElementById('menuButton');
     const toast = document.getElementById('toast');
+    const choiceBackdrop = document.getElementById('choiceBackdrop');
+    const choiceGrid = document.getElementById('choiceGrid');
+    const choiceCancel = document.getElementById('choiceCancel');
     const opButtons = [...document.querySelectorAll('.op-btn')];
+    let editingSetupIndex = null;
 
     let state = {
       numbers: [],
@@ -699,44 +798,65 @@
 
     function createSetup() {
       setupGrid.innerHTML = '';
-      for (let i = 0; i < 6; i++) {
+      setupValues.forEach((value, i) => {
         const wrap = document.createElement('div');
         wrap.className = 'pick-card';
         wrap.style.setProperty('--accent', colorCycle[i % colorCycle.length]);
 
-        const select = document.createElement('select');
-        select.dataset.index = i;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'setup-number-btn';
+        btn.textContent = value;
+        btn.addEventListener('click', () => openChoicePopup(i));
 
-        const values = [...bigNumbers, ...smallNumbers];
-        values.forEach(v => {
-          const opt = document.createElement('option');
-          opt.value = v;
-          opt.textContent = v;
-          if (String(v) === String(setupValues[i])) opt.selected = true;
-          select.appendChild(opt);
-        });
-
-        wrap.appendChild(select);
+        wrap.appendChild(btn);
         setupGrid.appendChild(wrap);
-      }
+      });
+    }
+
+    function openChoicePopup(index) {
+      editingSetupIndex = index;
+      choiceGrid.innerHTML = '';
+
+      choiceValues.forEach(value => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'choice-option';
+        if (value === setupValues[index]) btn.classList.add('current');
+        btn.textContent = value;
+        btn.addEventListener('click', () => {
+          setupValues[index] = value;
+          closeChoicePopup();
+          createSetup();
+        });
+        choiceGrid.appendChild(btn);
+      });
+
+      choiceBackdrop.classList.add('show');
+      choiceBackdrop.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeChoicePopup() {
+      editingSetupIndex = null;
+      choiceBackdrop.classList.remove('show');
+      choiceBackdrop.setAttribute('aria-hidden', 'true');
     }
 
     function randomSetup() {
-      const selects = [...setupGrid.querySelectorAll('select')];
-      const values = [];
-      const bag = [...smallNumbers, ...smallNumbers, ...bigNumbers];
+      const bag = [...choiceValues];
+      setupValues = [];
       for (let i = 0; i < 6; i++) {
         const idx = Math.floor(Math.random() * bag.length);
-        values.push(bag.splice(idx, 1)[0]);
+        setupValues.push(bag.splice(idx, 1)[0]);
       }
-      selects.forEach((sel, i) => sel.value = values[i]);
       targetInput.value = 100 + Math.floor(Math.random() * 900);
+      createSetup();
     }
 
     function getSetupNumbers() {
-      return [...setupGrid.querySelectorAll('select')].map((sel, index) => ({
+      return setupValues.map((value, index) => ({
         id: `n${index}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
-        value: Number(sel.value),
+        value: Number(value),
         accent: colorCycle[index % colorCycle.length],
         source: 'initial'
       }));
@@ -969,6 +1089,13 @@
     undoBtn.addEventListener('click', undoLast);
     validateBtn.addEventListener('click', validateGame);
     opButtons.forEach(btn => btn.addEventListener('click', () => onOpClick(btn.dataset.op)));
+    choiceCancel.addEventListener('click', closeChoicePopup);
+    choiceBackdrop.addEventListener('click', event => {
+      if (event.target === choiceBackdrop) closeChoicePopup();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && choiceBackdrop.classList.contains('show')) closeChoicePopup();
+    });
     targetInput.addEventListener('change', () => {
       if (Number(targetInput.value) > 999) targetInput.value = 999;
       if (Number(targetInput.value) < 100) targetInput.value = 100;
