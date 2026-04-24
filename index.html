@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Cifra exacta</title>
@@ -245,12 +245,15 @@
       color: var(--pink);
     }
 
+    .target-pick { cursor: pointer; }
+
     .target-pick input {
       font-size: clamp(64px, 7vw, 94px);
       color: var(--pink);
       line-height: 1;
       letter-spacing: -.055em;
       height: 96px;
+      cursor: pointer;
     }
 
     .setup-actions {
@@ -616,6 +619,48 @@
       box-shadow: inset 0 -3px 0 rgba(0,0,0,.1), 0 2px 7px rgba(0,0,0,.07);
     }
 
+    .target-digit-preview {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 0 0 16px;
+    }
+
+    .target-digit-slot {
+      min-height: 76px;
+      border-radius: 18px;
+      border: 2px dashed #f0bdd4;
+      background: #fff7fb;
+      color: var(--pink);
+      display: grid;
+      place-items: center;
+      font-size: 44px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: -.05em;
+    }
+
+    .target-digit-slot.filled {
+      border-style: solid;
+      border-color: var(--pink);
+      background: #fff;
+    }
+
+    .choice-grid.digit-grid {
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    .choice-option.utility {
+      grid-column: span 2;
+      min-height: 60px;
+      color: var(--purple);
+      font-size: 22px;
+      letter-spacing: -.02em;
+      border: 2px solid var(--purple);
+      box-shadow: none;
+    }
+
     .choice-cancel {
       width: 100%;
       min-height: 54px;
@@ -698,7 +743,7 @@
             <h2>Objetivo</h2>
             <div class="target-pick" style="--accent: var(--pink)">
               <label for="targetInput">Cifra objetivo</label>
-              <input id="targetInput" type="number" min="100" max="999" inputmode="numeric" value="742" />
+              <input id="targetInput" type="text" inputmode="none" readonly value="742" aria-haspopup="dialog" />
             </div>
           </div>
         </div>
@@ -759,7 +804,25 @@
   <script>
     const colorCycle = ['var(--pink)', 'var(--blue)', 'var(--green)', 'var(--yellow)', 'var(--purple)', 'var(--orange)'];
     const choiceValues = [1,2,3,4,5,6,7,8,9,10,25,100];
+    const targetDigitValues = [1,2,3,4,5,6,7,8,9,0];
     let setupValues = [100, 25, 8, 6, 3, 2];
+
+    function lockViewportZoom() {
+      const prevent = event => event.preventDefault();
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(eventName => {
+        document.addEventListener(eventName, prevent, { passive: false });
+      });
+      document.addEventListener('touchmove', event => {
+        if (event.touches && event.touches.length > 1) event.preventDefault();
+      }, { passive: false });
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', event => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 320) event.preventDefault();
+        lastTouchEnd = now;
+      }, { passive: false });
+      document.addEventListener('dblclick', prevent, { passive: false });
+    }
 
     const setupGrid = document.getElementById('setupGrid');
     const targetInput = document.getElementById('targetInput');
@@ -779,6 +842,8 @@
     const choiceCancel = document.getElementById('choiceCancel');
     const opButtons = [...document.querySelectorAll('.op-btn')];
     let editingSetupIndex = null;
+    let choiceMode = null;
+    let targetDigits = [];
 
     let state = {
       numbers: [],
@@ -815,8 +880,13 @@
     }
 
     function openChoicePopup(index) {
+      choiceMode = 'setupNumber';
       editingSetupIndex = index;
+      targetDigits = [];
+      choiceGrid.className = 'choice-grid';
       choiceGrid.innerHTML = '';
+      document.getElementById('choiceTitle').textContent = 'Escoge una cifra';
+      choiceCancel.textContent = 'Cancelar';
 
       choiceValues.forEach(value => {
         const btn = document.createElement('button');
@@ -836,8 +906,88 @@
       choiceBackdrop.setAttribute('aria-hidden', 'false');
     }
 
+    function openTargetPopup() {
+      choiceMode = 'target';
+      editingSetupIndex = null;
+      targetDigits = [];
+      choiceGrid.className = 'choice-grid digit-grid';
+      document.getElementById('choiceTitle').textContent = 'Escoge los 3 dígitos';
+      choiceCancel.textContent = 'Cancelar';
+      renderTargetDigitPopup();
+      choiceBackdrop.classList.add('show');
+      choiceBackdrop.setAttribute('aria-hidden', 'false');
+    }
+
+    function renderTargetDigitPopup() {
+      choiceGrid.innerHTML = '';
+
+      const preview = document.createElement('div');
+      preview.className = 'target-digit-preview';
+      for (let i = 0; i < 3; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'target-digit-slot';
+        if (targetDigits[i] !== undefined) {
+          slot.classList.add('filled');
+          slot.textContent = targetDigits[i];
+        } else {
+          slot.textContent = '—';
+        }
+        preview.appendChild(slot);
+      }
+      choiceGrid.appendChild(preview);
+
+      targetDigitValues.forEach(value => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'choice-option';
+        btn.textContent = value;
+        btn.addEventListener('click', () => onTargetDigitClick(value));
+        choiceGrid.appendChild(btn);
+      });
+
+      const backspaceBtn = document.createElement('button');
+      backspaceBtn.type = 'button';
+      backspaceBtn.className = 'choice-option utility';
+      backspaceBtn.textContent = 'Borrar';
+      backspaceBtn.disabled = targetDigits.length === 0;
+      backspaceBtn.addEventListener('click', () => {
+        targetDigits.pop();
+        renderTargetDigitPopup();
+      });
+      choiceGrid.appendChild(backspaceBtn);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'choice-option utility';
+      clearBtn.textContent = 'Reiniciar';
+      clearBtn.disabled = targetDigits.length === 0;
+      clearBtn.addEventListener('click', () => {
+        targetDigits = [];
+        renderTargetDigitPopup();
+      });
+      choiceGrid.appendChild(clearBtn);
+    }
+
+    function onTargetDigitClick(value) {
+      if (targetDigits.length >= 3) return;
+      if (targetDigits.length === 0 && value === 0) {
+        showToast('El primer dígito no puede ser 0');
+        return;
+      }
+      targetDigits.push(value);
+      if (targetDigits.length === 3) {
+        targetInput.value = targetDigits.join('');
+        closeChoicePopup();
+      } else {
+        renderTargetDigitPopup();
+      }
+    }
+
     function closeChoicePopup() {
       editingSetupIndex = null;
+      choiceMode = null;
+      targetDigits = [];
+      choiceGrid.className = 'choice-grid';
       choiceBackdrop.classList.remove('show');
       choiceBackdrop.setAttribute('aria-hidden', 'true');
     }
@@ -864,8 +1014,8 @@
 
     function startGame() {
       const target = Number(targetInput.value);
-      if (!Number.isInteger(target) || target < 1) {
-        showToast('Introduce un objetivo válido');
+      if (!Number.isInteger(target) || target < 100 || target > 999) {
+        showToast('Introduce un objetivo de 3 dígitos');
         return;
       }
       state = {
@@ -962,7 +1112,8 @@
     }
 
     function renderButtons() {
-      undoBtn.disabled = state.history.length === 0;
+      const hasPartialSelection = Boolean(state.selectedFirstId || state.selectedOp);
+      undoBtn.disabled = !hasPartialSelection && state.history.length === 0;
     }
 
     function render() {
@@ -1051,6 +1202,21 @@
     }
 
     function undoLast() {
+      if (state.selectedOp) {
+        state.selectedOp = null;
+        state.phase = 'pickOp';
+        render();
+        return;
+      }
+
+      if (state.selectedFirstId) {
+        state.selectedFirstId = null;
+        state.selectedOp = null;
+        state.phase = 'pickFirst';
+        render();
+        return;
+      }
+
       if (!state.history.length) return;
       const last = state.history.pop();
       state.numbers = last.prevNumbers;
@@ -1096,11 +1262,10 @@
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && choiceBackdrop.classList.contains('show')) closeChoicePopup();
     });
-    targetInput.addEventListener('change', () => {
-      if (Number(targetInput.value) > 999) targetInput.value = 999;
-      if (Number(targetInput.value) < 100) targetInput.value = 100;
-    });
+    targetInput.addEventListener('click', openTargetPopup);
+    targetInput.addEventListener('focus', () => targetInput.blur());
 
+    lockViewportZoom();
     createSetup();
   </script>
 </body>
